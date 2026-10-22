@@ -31,7 +31,6 @@ enum SenderTransport {
     case usb(udid: String?, port: UInt16)  // native usbmuxd dial; nil = first device
 }
 
-@available(macOS 14.0, *)
 final class MacSender: NSObject, SCStreamOutput, SCStreamDelegate {
 
     // Status surfaced to the UI (updated on main thread).
@@ -379,7 +378,7 @@ final class MacSender: NSObject, SCStreamOutput, SCStreamDelegate {
             await status("Screen Recording permission needed — see Permissions below")
             Log.info("Screen Recording permission missing — waiting for grant via the permission panel")
             while !CGPreflightScreenCaptureAccess() {
-                try await Task.sleep(for: .seconds(2))
+                try await Task.sleep(nanoseconds: 2_000_000_000)
                 if stopped { return }
             }
             Log.info("Screen Recording permission granted")
@@ -436,7 +435,7 @@ final class MacSender: NSObject, SCStreamOutput, SCStreamDelegate {
                 // Event posting is trust-checked per-post, so it starts working
                 // the moment the user grants — poll just to log/report it.
                 while !AXIsProcessTrusted() {
-                    try await Task.sleep(for: .seconds(2))
+                    try await Task.sleep(nanoseconds: 2_000_000_000)
                     if stopped { return }
                 }
                 Log.info("Accessibility permission granted — touch input live")
@@ -720,7 +719,7 @@ final class MacSender: NSObject, SCStreamOutput, SCStreamDelegate {
             // identity; fresh fallback identities get a shorter window.
             var created: VirtualDisplay?
             for attempt in 0..<(probe == 0 ? 8 : 3) {
-                if attempt > 0 { try await Task.sleep(for: .seconds(2)) }
+                if attempt > 0 { try await Task.sleep(nanoseconds: 2_000_000_000) }
                 // A Disconnect during the retry window tore the session down. Bail
                 // before creating/assigning the display: the serial the old display
                 // held is likely free now, so a late attempt would *succeed* and
@@ -751,9 +750,10 @@ final class MacSender: NSObject, SCStreamOutput, SCStreamDelegate {
                 if let created {
                     await MainActor.run {
                         created.onModeRefused = { [weak self] refused in
-                            self?.queue.async {
-                                guard let self, let info = self.lastHello else { return }
-                                self.modeRefused(refused, info: info)
+                            guard let sender = self else { return }
+                            sender.queue.async { [weak sender] in
+                                guard let sender, let info = sender.lastHello else { return }
+                                sender.modeRefused(refused, info: info)
                             }
                         }
                     }
@@ -927,7 +927,7 @@ final class MacSender: NSObject, SCStreamOutput, SCStreamDelegate {
     private func scheduleCanvasRebuild() {
         canvasNeedsRebuild = true
         Task {
-            try? await Task.sleep(for: .milliseconds(300))
+            try? await Task.sleep(nanoseconds: 300000000)
             guard let info = self.lastHello, self.canvasNeedsRebuild else { return }
             // Still in setup: `start()` picks the flag up once setupExtend
             // returns, so a second capture path never starts beside it.
@@ -972,15 +972,16 @@ final class MacSender: NSObject, SCStreamOutput, SCStreamDelegate {
                                          scale: vd.scale)
         let dimensionsChanged = vd.pointsWide != pointsWide || vd.pointsHigh != pointsHigh
             || vd.scale != scale
-        let didResize = if dimensionsChanged {
-            await MainActor.run {
+        let didResize: Bool
+        if dimensionsChanged {
+            didResize = await MainActor.run {
                 guard !self.stopped, self.virtualDisplay === vd else { return false }
                 return vd.resize(pointsWide: pointsWide, pointsHigh: pointsHigh, scale: scale,
                                  movingTo: DisplayArrangement.origin(for: size,
                                                                      device: arrangementKey))
             }
         } else {
-            true
+            didResize = true
         }
         try ensureActiveDisplay(vd)
         guard didResize else {
@@ -1090,7 +1091,7 @@ final class MacSender: NSObject, SCStreamOutput, SCStreamDelegate {
             }) {
                 return display
             }
-            try await Task.sleep(for: .milliseconds(250))
+            try await Task.sleep(nanoseconds: 250000000)
         }
         // An empty display list is a different disease from "ours is
         // missing": capture authorization is broken app-wide, and callers
@@ -1273,7 +1274,8 @@ final class MacSender: NSObject, SCStreamOutput, SCStreamDelegate {
     func switchTransport(to newTransport: SenderTransport) {
         queue.async { [weak self] in
             guard let self, !self.stopped else { return }
-            let label = if case .usb = newTransport { "USB" } else { "WiFi" }
+            var label = "WiFi"
+            if case .usb = newTransport { label = "USB" }
             Log.info("switching \(self.endpointName) to \(label)")
             self.transport = newTransport
             // Fresh grace window: if the new link can't come up either, the
@@ -2063,7 +2065,7 @@ final class MacSender: NSObject, SCStreamOutput, SCStreamDelegate {
             let y = (loc.y - bounds.minY) / bounds.height
             if !lastCursorSent.visible
                 || abs(x - lastCursorSent.x) > 0.0004 || abs(y - lastCursorSent.y) > 0.0004 {
-                lastCursorSent = (x, y, true)
+                lastCursorSent = (x: Double(x), y: Double(y), visible: true)
                 sendCursor(String(format: "\"x\":%.4f,\"y\":%.4f,\"v\":1", x, y))
             }
         } else if lastCursorSent.visible {
@@ -2351,7 +2353,7 @@ final class MacSender: NSObject, SCStreamOutput, SCStreamDelegate {
                     // Rebuild after a short debounce so a flurry of rotations
                     // or capability updates settles into one selection.
                     Task {
-                        try? await Task.sleep(for: .milliseconds(300))
+                        try? await Task.sleep(nanoseconds: 300000000)
                         guard let current = self.lastHello,
                               !self.streamSelectionInputsChanged(from: info,
                                                                  to: current) else { return }
