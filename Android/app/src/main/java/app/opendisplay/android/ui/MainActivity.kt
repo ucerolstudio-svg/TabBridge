@@ -177,15 +177,9 @@ class MainActivity : AppCompatActivity(), ReceiverServer.Listener, VideoDecoder.
             .mapIndexed { i, s -> "${i + 1}. ${getString(s)}" }.joinToString("\n")
         onboarding = MaterialAlertDialogBuilder(this)
             .setTitle(R.string.onboarding_title)
-            .setMessage(getString(R.string.onboarding_body, kind) + "\n\n" + steps + "\n\n" +
-                getString(R.string.onboarding_footer, kind))
-            .setPositiveButton(R.string.get_mac_app) { _, _ ->
-                try {
-                    startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW,
-                        android.net.Uri.parse(SettingsDialog.MAC_APP_URL)))
-                } catch (_: Exception) {
-                }
-            }
+            .setMessage(getString(R.string.onboarding_body) + "\n\n" + steps + "\n\n" +
+                getString(R.string.onboarding_footer))
+            .setPositiveButton(R.string.done, null)
             .setNegativeButton(R.string.close, null)
             .setOnDismissListener {
                 prefs.onboardingDismissed = true

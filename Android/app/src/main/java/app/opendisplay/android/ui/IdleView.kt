@@ -65,7 +65,7 @@ class IdleView(context: Context, kind: String, onSettings: () -> Unit) : ScrollV
             setPadding(dp(20), dp(20), dp(20), dp(6))
         }
         hints.addView(hint(R.drawable.ic_laptop, context.getString(R.string.hint_open_mac)))
-        hints.addView(hint(R.drawable.ic_wifi, context.getString(R.string.hint_pick_wifi, kind)))
+        hints.addView(hint(R.drawable.ic_wifi, context.getString(R.string.hint_pick_wifi)))
         hints.addView(hint(R.drawable.ic_play, context.getString(R.string.hint_keep_open)))
         val card = MaterialCardView(ContextThemeWrapper(context,
             com.google.android.material.R.style.Widget_Material3_CardView_Filled)).apply { addView(hints) }
@@ -78,7 +78,7 @@ class IdleView(context: Context, kind: String, onSettings: () -> Unit) : ScrollV
             setOnClickListener { onSettings() }
         }, LinearLayout.LayoutParams(WRAP, WRAP).apply { topMargin = dp(24) })
         column.addView(TextView(context).apply {
-            text = context.getString(R.string.shake_tip, kind)
+            text = context.getString(R.string.shake_tip)
             androidx.core.widget.TextViewCompat.setTextAppearance(this, attrRes(com.google.android.material.R.attr.textAppearanceBodySmall))
             setTextColor(color(com.google.android.material.R.attr.colorOutline))
             gravity = Gravity.CENTER

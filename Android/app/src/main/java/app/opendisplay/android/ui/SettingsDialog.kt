@@ -138,7 +138,7 @@ class SettingsDialog : DialogFragment() {
             screen.category(R.string.section_diagnostics) {
                 addPreference(Preference(ctx).apply {
                     title = getString(R.string.connection_log)
-                    summary = getString(R.string.diagnostics_footer, kind)
+                    summary = getString(R.string.diagnostics_footer)
                     isIconSpaceReserved = false
                     setOnPreferenceClickListener {
                         LogDialog().show(parentFragmentManager, "log")
@@ -149,8 +149,8 @@ class SettingsDialog : DialogFragment() {
 
             screen.category(R.string.section_how) {
                 listOf(
-                    getString(R.string.how_wifi, kind),
-                    getString(R.string.how_rotate, kind),
+                    getString(R.string.how_wifi),
+                    getString(R.string.how_rotate),
                     getString(R.string.how_touch),
                     getString(R.string.how_pen),
                 ).forEach { addPreference(footer(it)) }
