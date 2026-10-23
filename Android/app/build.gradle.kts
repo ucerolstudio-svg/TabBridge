@@ -8,7 +8,7 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.peetzweg.opendisplay"
+        applicationId = "dev.tabbridge.android"
         // Google Play rejects bundles below API 24 (its automatic protection
         // requires it), so Play builds pass -PappMinSdk=24. The GitHub APK
         // keeps 21 for Android 5 and 6 devices.
@@ -20,14 +20,21 @@ android {
         versionName = findProperty("appVersionName") as String? ?: "0.1.0"
     }
 
+    signingConfigs.getByName("debug") {
+        storeFile = rootProject.file("../build/tabbridge-debug.keystore")
+        storePassword = "android"
+        keyAlias = "androiddebugkey"
+        keyPassword = "android"
+    }
+
     buildTypes {
         debug {
-            applicationIdSuffix = ".debug"
-            resValue("string", "app_name", "OpenDisplay Dev")
+            // The local TabBridge test app keeps its own stable identifier.
+            resValue("string", "app_name", "TabBridge")
         }
         release {
             isMinifyEnabled = false
-            resValue("string", "app_name", "OpenDisplay")
+            resValue("string", "app_name", "TabBridge")
         }
     }
 
