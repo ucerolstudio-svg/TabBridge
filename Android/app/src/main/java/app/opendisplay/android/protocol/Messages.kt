@@ -10,7 +10,7 @@ object WireProtocol {
     const val MIN_SUPPORTED_PEER = 1
     const val ASSUMED_WHEN_ABSENT = 1
     const val TCP_PORT = 9000
-    const val SERVICE_TYPE = "_opensidecar._tcp"
+    const val SERVICE_TYPE = "_tabbridge._tcp"
 }
 
 /** Panel facts in the current orientation (PROTOCOL.md 6.7). */
