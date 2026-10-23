@@ -78,6 +78,9 @@ final class MacSender: NSObject, SCStreamOutput, SCStreamDelegate {
 
     // The dial target. Written on `queue` only (after init): the controller
     // can migrate a live session between transports via switchTransport.
+    private let tcpParametersFactory: (() -> NWParameters)?
+    private let connectionPreamble: Data?
+    private var usesAuthenticatedTCP: Bool { tcpParametersFactory != nil }
     private var transport: SenderTransport
     private let endpointName: String
     private let mode: CaptureMode
@@ -356,7 +359,11 @@ final class MacSender: NSObject, SCStreamOutput, SCStreamDelegate {
 
     init(transport: SenderTransport, name: String, mode: CaptureMode,
          quality: StreamQuality = .best, displaySerial: UInt32 = 0x0001,
-         identityOffset: UInt32 = 0, awaitingWake: Bool = false) {
+         identityOffset: UInt32 = 0, awaitingWake: Bool = false,
+         tcpParametersFactory: (() -> NWParameters)? = nil, connectionPreamble: Data? = nil) {
+        precondition((tcpParametersFactory == nil) == (connectionPreamble == nil))
+        self.tcpParametersFactory = tcpParametersFactory
+        self.connectionPreamble = connectionPreamble
         self.transport = transport
         self.endpointName = name
         self.mode = mode
@@ -1379,6 +1386,7 @@ final class MacSender: NSObject, SCStreamOutput, SCStreamDelegate {
     func switchTransport(to newTransport: SenderTransport) {
         queue.async { [weak self] in
             guard let self, !self.stopped else { return }
+            if self.usesAuthenticatedTCP, case .usb = newTransport { return }
             let label = if case .usb = newTransport { "USB" } else { "WiFi" }
             Log.info("switching \(self.endpointName) to \(label)")
             self.transport = newTransport
@@ -1622,7 +1630,9 @@ final class MacSender: NSObject, SCStreamOutput, SCStreamDelegate {
         guard !stopped else { return }
         switch transport {
         case .tcp(let endpoint): connectTCP(endpoint)
-        case .usb(let udid, let port): connectUSB(udid: udid, port: port)
+        case .usb(let udid, let port):
+            guard !usesAuthenticatedTCP else { return }
+            connectUSB(udid: udid, port: port)
         }
     }
 
@@ -1703,6 +1713,7 @@ final class MacSender: NSObject, SCStreamOutput, SCStreamDelegate {
     /// Arm the periodic probe. Cheap when there is nothing to find: with no
     /// advertised addresses, or on the USB transport, it never fires a dial.
     private func startUpgradeProbing() {
+        guard !usesAuthenticatedTCP else { return }
         lastLoggedCandidates = []
         upgradeTimer?.cancel()
         let timer = DispatchSource.makeTimerSource(queue: queue)
@@ -1740,6 +1751,7 @@ final class MacSender: NSObject, SCStreamOutput, SCStreamDelegate {
     /// interface for link-local IPv6) with WiFi forbidden. mDNS resolution
     /// stalls under interface restrictions; literal addresses do not.
     private func probeForCablePath(force: Bool = false) {
+        guard !usesAuthenticatedTCP else { return }
         guard !stopped, connectionReady,
               currentPathUsesWiFi || UserDefaults.standard.bool(forKey: "forceUpgradeProbe"),
               case .tcp = transport, !peerAddrs.isEmpty else { return }
@@ -1823,6 +1835,7 @@ final class MacSender: NSObject, SCStreamOutput, SCStreamDelegate {
     /// reconnect: the receiver parks the newcomer, adopts it on our first
     /// bytes, and the abandoned WiFi socket's EOF is ignored as stale.
     private func migrate(to conn: NWConnection) {
+        guard !usesAuthenticatedTCP else { conn.cancel(); return }
         let names = conn.currentPath?.availableInterfaces.map(\.name)
             .joined(separator: ",") ?? "?"
         Log.info("cable path answered (\(names)) — migrating the session off WiFi")
@@ -1893,6 +1906,37 @@ final class MacSender: NSObject, SCStreamOutput, SCStreamDelegate {
         return result
     }
 
+    /// TLS has verified the USB-pinned certificate. Authenticate before opening any media/input gate.
+    private func authenticate(_ conn: NWConnection, preamble: Data) {
+        var finished = false // all accesses on the connection's serial queue
+        let fail: () -> Void = { [weak self] in
+            guard let self, !finished, self.connection === conn, !self.stopped else { return }
+            finished = true
+            Task { await self.status("Güvenli eşleştirme doğrulanamadı; USB ile yeniden eşleştir.") }
+            self.scheduleReconnect()
+        }
+        queue.asyncAfter(deadline: .now() + 5) { if !finished { fail() } }
+        conn.send(content: preamble, completion: .contentProcessed { [weak self] error in
+            guard let self, self.connection === conn, !self.stopped, !finished else { return }
+            guard error == nil else { fail(); return }
+            conn.receive(minimumIncompleteLength: 4, maximumLength: 4) { [weak self] data, _, _, error in
+                guard let self, self.connection === conn, !self.stopped, !finished else { return }
+                guard error == nil, let data, data.count == 4 else { fail(); return }
+                let length = Int(UInt32(bigEndian: data.withUnsafeBytes { $0.loadUnaligned(as: UInt32.self) }))
+                guard length > 0, length <= 512 else { fail(); return }
+                conn.receive(minimumIncompleteLength: length, maximumLength: length) { [weak self] data, _, _, error in
+                    guard let self, self.connection === conn, !self.stopped, !finished else { return }
+                    struct Ack: Decodable { let type: String; let securityVersion: Int }
+                    guard error == nil, let data, data.count == length,
+                          let ack = try? JSONDecoder().decode(Ack.self, from: data),
+                          ack.type == "authenticated", ack.securityVersion == 1 else { fail(); return }
+                    finished = true
+                    self.becomeReady(conn)
+                }
+            }
+        })
+    }
+
     private func connectTCP(_ endpoint: NWEndpoint) {
         let options = NWProtocolTCP.Options()
         options.noDelay = true   // latency matters more than throughput here
@@ -1901,7 +1945,7 @@ final class MacSender: NSObject, SCStreamOutput, SCStreamDelegate {
         // there is one (field-tested: en10 chosen over en0). A WiFi-prohibited
         // pre-dial was tried and only ever hung until its timeout, adding 2s
         // to every connect. becomeReady reports which path won.
-        let params = NWParameters(tls: nil, tcp: options)
+        let params = tcpParametersFactory?() ?? NWParameters(tls: nil, tcp: options)
         let conn = NWConnection(to: endpoint, using: params)
         connection = conn
         // A dial to a withdrawn Bonjour service (receiver asleep or app
@@ -1918,10 +1962,11 @@ final class MacSender: NSObject, SCStreamOutput, SCStreamDelegate {
             self.scheduleReconnect()
         }
         conn.stateUpdateHandler = { [weak self] state in
-            guard let self else { return }
+            guard let self, !self.stopped, self.connection === conn else { return }
             switch state {
             case .ready:
-                self.becomeReady(conn)
+                if let preamble = self.connectionPreamble { self.authenticate(conn, preamble: preamble) }
+                else { self.becomeReady(conn) }
             case .failed(let error):
                 Log.info("connection failed: \(error)")
                 self.connectionReady = false
@@ -2211,6 +2256,7 @@ final class MacSender: NSObject, SCStreamOutput, SCStreamDelegate {
     /// Bonjour or Thunderbolt-bridged dial lands on the same interface. Any
     /// failure here is silent: the cursor keeps riding TCP.
     private func openCursorChannel(port: Int) {
+        guard !usesAuthenticatedTCP else { closeCursorChannel(); return }
         guard case .tcp = transport, let conn = connection, connectionReady,
               port > 0, port <= Int(UInt16.max),
               let udpPort = NWEndpoint.Port(rawValue: UInt16(port)) else {
@@ -2345,7 +2391,7 @@ final class MacSender: NSObject, SCStreamOutput, SCStreamDelegate {
 
     private func receiveControl(on conn: NWConnection) {
         conn.receive(minimumIncompleteLength: 4, maximumLength: 4) { [weak self] data, _, _, error in
-            guard let self, error == nil, let data, data.count == 4 else {
+            guard let self, self.connection === conn, !self.stopped, error == nil, let data, data.count == 4 else {
                 if let error {
                     Log.info("control receive ended: \(error)")
                     // A receive error on the live connection is fatal to it.
@@ -2364,7 +2410,7 @@ final class MacSender: NSObject, SCStreamOutput, SCStreamDelegate {
             let len = Int(UInt32(bigEndian: data.withUnsafeBytes { $0.loadUnaligned(as: UInt32.self) }))
             guard len > 0, len < 1 << 20 else { return }
             conn.receive(minimumIncompleteLength: len, maximumLength: len) { [weak self] payload, _, _, error in
-                guard let self, error == nil, let payload, payload.count == len else { return }
+                guard let self, self.connection === conn, !self.stopped, error == nil, let payload, payload.count == len else { return }
                 self.handleControl(payload)
                 self.receiveControl(on: conn)
             }
