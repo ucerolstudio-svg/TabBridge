@@ -7,6 +7,9 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 # A superseded run tells us nothing, so drop in-flight runs for the same ref.
 concurrency:
   group: tests-${{ github.ref }}
@@ -67,6 +70,19 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY=""
 
+      - name: Build native TabBridge app and widget
+        run: |
+          export TABBRIDGE_SDK="$(xcrun --show-sdk-path)"
+          bash Native/scripts/build-macos.sh build/native-ci
+
+      - name: Check TabBridge USB target selection
+        run: |
+          mkdir -p build/native-tests
+          xcrun swiftc -sdk "$(xcrun --show-sdk-path)" \
+            Native/Core/TabTypes.swift Native/Tests/main.swift \
+            -o build/native-tests/tabbridge-usb
+          build/native-tests/tabbridge-usb
+
   android:
     runs-on: ubuntu-latest
     defaults:
@@ -79,6 +95,11 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+
+      # Each runner gets a disposable development key. Personal signing keys
+      # stay outside Git; CI must not depend on a developer's local build/.
+      - name: Prepare disposable Android development build
+        run: bash ../Native/scripts/build-android.sh
 
       # Lint is what catches a platform API above minSdk 21 sneaking in
       # without an SDK_INT guard. assembleRelease (unsigned) runs the release

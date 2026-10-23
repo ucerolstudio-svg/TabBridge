@@ -1,8 +1,9 @@
-name: Release
+name: Upstream release reference (manual only)
 
 on:
-  push:
-    branches: [main]
+  # Retained as upstream documentation. TabBridge development previews are
+  # published separately; a source push must not invoke release-please or
+  # request upstream signing/App Store credentials.
   # Recovery: build and upload every platform for a release that already
   # exists (release-please created the tag, but a later step failed before
   # the build jobs ran).
@@ -27,6 +28,7 @@ concurrency:
 
 jobs:
   release-please:
+    if: github.repository == 'peetzweg/opendisplay'
     runs-on: ubuntu-latest
     outputs:
       release_created: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.rp.outputs.release_created || steps.rp2.outputs.release_created || steps.rp3.outputs.release_created }}
