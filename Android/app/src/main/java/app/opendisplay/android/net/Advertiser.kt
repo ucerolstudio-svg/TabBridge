@@ -19,7 +19,7 @@ class Advertiser(context: Context) {
     var registeredName: String? = null
         private set
 
-    fun register(name: String, installId: String, port: Int = WireProtocol.TCP_PORT) {
+    fun register(name: String, installId: String, port: Int = 9443) {
         main.removeCallbacksAndMessages(null)
         retries = 0
         registerOnce(name, installId, port)
@@ -29,15 +29,16 @@ class Advertiser(context: Context) {
         unregisterQuietly()
         val info = NsdServiceInfo().apply {
             serviceName = name
-            serviceType = WireProtocol.SERVICE_TYPE
+            serviceType = "_tabbridge-secure._tcp."
             setPort(port)
             setAttribute("id", installId)
             setAttribute("pv", WireProtocol.VERSION.toString())
+            setAttribute("securityVersion", "1")
         }
         val listener = object : NsdManager.RegistrationListener {
             override fun onServiceRegistered(info: NsdServiceInfo) {
                 registeredName = info.serviceName
-                Log.i(TAG, "advertising '${info.serviceName}' as ${WireProtocol.SERVICE_TYPE}")
+                Log.i(TAG, "advertising '${info.serviceName}' as _tabbridge-secure._tcp")
                 // NSD renames on a collision ("Pixel 10a (2)"). Usually the
                 // collision is our own previous process, whose record lingers
                 // after a kill. The Mac remembers devices by name, so a renamed

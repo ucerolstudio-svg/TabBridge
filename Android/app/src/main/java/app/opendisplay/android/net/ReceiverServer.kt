@@ -19,8 +19,6 @@ import java.io.FilterInputStream
 import java.io.IOException
 import java.io.InputStream
 import java.io.SequenceInputStream
-import java.net.InetSocketAddress
-import java.net.ServerSocket
 import java.net.Socket
 import java.net.SocketTimeoutException
 import java.util.concurrent.Executors
@@ -29,7 +27,7 @@ import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
 
 /**
- * The receiver end of PROTOCOL.md: listens on TCP 9000, serves one sender at a
+ * The receiver end of PROTOCOL.md: admits TLS-authenticated peers on 9443, serves one sender at a
  * time, speaks hello/ping/kf/input, and hands video and the sender's control
  * messages to [listener]. Callbacks arrive on network threads.
  */
@@ -37,7 +35,7 @@ class ReceiverServer(
     private val listener: Listener,
     /** Builds the current `hello`; called on network threads. */
     private val helloFactory: (cursorPort: Int?) -> JSONObject,
-    private val port: Int = WireProtocol.TCP_PORT,
+    private val pairing: SecurePairing,
 ) {
     interface Listener {
         fun onSessionStarted(transport: String)
@@ -59,13 +57,13 @@ class ReceiverServer(
 
     private val lock = Any()
     @Volatile private var running = false
-    private var serverSocket: ServerSocket? = null
     /** Volatile so the UDP cursor thread can check it without taking [lock]. */
     @Volatile private var current: Session? = null
     private var generation = 0
     private val candidates = mutableListOf<Socket>()
     private var timers: ScheduledExecutorService? = null
-    private var cursorChannel: CursorChannel? = null
+    private var cursorChannel: CursorChannel? = null // Never opened by TabBridge; all cursor traffic uses the protected stream.
+    private var secureListener: SecureListener? = null
 
     @Volatile var senderPv: Int = WireProtocol.ASSUMED_WHEN_ABSENT
         private set
@@ -78,14 +76,13 @@ class ReceiverServer(
             running = true
             ++generation
         }
-        cursorChannel = CursorChannel(port + 1, ::onCursorDatagram, ::ackCursorFlow).also { it.start() }
+        secureListener = SecureListener(pairing::sslContext, pairing::expectedToken) { socket -> onAccepted(socket, gen) }.also { it.start() }
         timers = Executors.newSingleThreadScheduledExecutor { r ->
             Thread(r, "od-timers").apply { isDaemon = true }
         }.also { t ->
             t.scheduleWithFixedDelay(::tick, 2, 2, TimeUnit.SECONDS)
             t.scheduleWithFixedDelay(::sendStats, 5, 5, TimeUnit.SECONDS)
         }
-        Thread({ acceptLoop(gen) }, "od-accept").apply { isDaemon = true }.start()
     }
 
     /** Ends the session with a best-effort courtesy message (`sleeping` or `closing`). */
@@ -99,9 +96,8 @@ class ReceiverServer(
             current = null
             candidates.forEach { closeQuietly(it) }
             candidates.clear()
-            closeQuietly(serverSocket)
-            serverSocket = null
         }
+        secureListener?.stop(); secureListener = null
         session?.closeAfter(announce?.let { Messages.simple(it) })
         timers?.shutdownNow()
         timers = null
@@ -116,46 +112,12 @@ class ReceiverServer(
 
     private fun live(gen: Int) = running && gen == generation
 
-    private fun acceptLoop(gen: Int) {
-        while (live(gen)) {
-            val server = try {
-                ServerSocket().apply {
-                    reuseAddress = true
-                    bind(InetSocketAddress(this@ReceiverServer.port))
-                }
-            } catch (e: IOException) {
-                Log.w(TAG, "listen on $port failed: $e; retrying in 1 s")
-                SystemClock.sleep(1000)
-                continue
-            }
-            synchronized(lock) {
-                if (!live(gen)) {
-                    closeQuietly(server)
-                    return
-                }
-                serverSocket = server
-            }
-            Log.i(TAG, "listening on TCP $port")
-            try {
-                while (live(gen)) {
-                    val socket = server.accept()
-                    socket.tcpNoDelay = true // tiny input packets must not wait for ACKs
-                    socket.keepAlive = true
-                    onAccepted(socket)
-                }
-            } catch (e: IOException) {
-                if (live(gen)) Log.w(TAG, "accept failed: $e; relistening")
-            } finally {
-                closeQuietly(server)
-            }
-        }
-    }
-
-    private fun onAccepted(socket: Socket) {
+    private fun onAccepted(socket: Socket, gen: Int) {
+        synchronized(lock) { if (!live(gen)) { closeQuietly(socket); return } }
         Log.i(TAG, "connection from ${socket.remoteSocketAddress}")
         val live = synchronized(lock) { current?.takeIf { it.isOpen } }
         if (live == null) {
-            adopt(socket, null)
+            adopt(socket, null, gen)
             return
         }
         // A Bonjour dial races IPv4 and IPv6 and the sender cancels the loser
@@ -163,11 +125,14 @@ class ReceiverServer(
         // So a newcomer must prove itself with bytes first (iOS receiver
         // behavior). Its provisional hello carries no cursorPort, so its UDP
         // flow cannot start before it owns the session.
-        synchronized(lock) { candidates.add(socket) }
-        Thread({ proveCandidate(socket) }, "od-candidate").apply { isDaemon = true }.start()
+        synchronized(lock) {
+            if (!live(gen)) { closeQuietly(socket); return }
+            candidates.add(socket)
+        }
+        Thread({ proveCandidate(socket, gen) }, "od-candidate").apply { isDaemon = true }.start()
     }
 
-    private fun proveCandidate(socket: Socket) {
+    private fun proveCandidate(socket: Socket, gen: Int) {
         try {
             socket.getOutputStream().apply {
                 write(Framing.encode(Messages.bytes(helloFactory(null))))
@@ -178,9 +143,9 @@ class ReceiverServer(
             val n = socket.getInputStream().read(buf)
             socket.soTimeout = 0
             val stillCandidate = synchronized(lock) { candidates.remove(socket) }
-            if (n > 0 && stillCandidate && running) {
+            if (n > 0 && stillCandidate && live(gen)) {
                 Log.i(TAG, "newcomer proved itself; adopting it as the session")
-                adopt(socket, buf.copyOf(n))
+                adopt(socket, buf.copyOf(n), gen)
             } else {
                 Log.i(TAG, "dropped a newcomer that sent nothing")
                 closeQuietly(socket)
@@ -192,12 +157,12 @@ class ReceiverServer(
         }
     }
 
-    private fun adopt(socket: Socket, initial: ByteArray?) {
+    private fun adopt(socket: Socket, initial: ByteArray?, gen: Int) {
         val transport = if (socket.inetAddress.isLoopbackAddress) "USB" else "WiFi"
         val session = Session(socket, initial)
         val old: Session?
         synchronized(lock) {
-            if (!running) {
+            if (!live(gen)) {
                 closeQuietly(socket)
                 return
             }
@@ -440,7 +405,10 @@ class ReceiverServer(
                 while (isOpen) {
                     val payload = Framing.readFrame(input) ?: break
                     lastReceive = SystemClock.elapsedRealtime()
-                    if (Demux.isControl(payload)) handleControl(payload) else listener.onVideoFrame(payload)
+                    synchronized(lock) {
+                        if (current !== this || !running) return
+                        if (Demux.isControl(payload)) handleControl(payload) else listener.onVideoFrame(payload)
+                    }
                 }
             } catch (e: SocketTimeoutException) {
                 Log.i(TAG, "read timed out")
