@@ -1,6 +1,8 @@
 # Privacy / Gizlilik
 
-TabBridge requires no account or cloud relay. This fork adds no analytics or automatic diagnostic uploads. Video travels from the Mac to the selected tablet; touch and pen events travel back. Discovery uses local Bonjour; USB uses ADB forwarding. Development Wi-Fi is not authenticated or encrypted: do not use it on untrusted networks.
+TabBridge requires no account or cloud relay. This fork adds no analytics or automatic diagnostic uploads. Video travels from the Mac to the selected tablet; touch and pen events travel back. Discovery uses local Bonjour; USB uses ADB forwarding. Version 0.2.0 uses TLS 1.2/1.3 for the shipped Native Mac/Android pair. First pairing obtains the tablet certificate pin and a per-Mac random credential over explicitly authorized physical USB, never from Bonjour. All media, input and cursor traffic uses the protected stream. ADB USB also forwards to the same authenticated TLS 9443 listener; no legacy plaintext TCP 9000 or UDP listener is opened. Older releases remain unencrypted.
+
+Wi-Fi pairing credentials are stored in the Mac Keychain, separately from preferences. Android identity keys stay in Android Keystore and peer tokens are encrypted at rest with a Keystore key; Android backup is disabled. The pairing provider is restricted to the authorized ADB shell or the app UID, in addition to a privileged manifest permission. No network pairing endpoint exports credentials. Tablet settings can forget all paired Macs and end the session. Removing the Mac app does not automatically delete Keychain items; use its forget option first if desired.
 
 The Mac stores selected device identifiers and cached widget status in its own preferences. The sandboxed widget reads that preference domain through a declared read-only exception. It does not capture screens, run ADB or continuously poll devices. macOS controls refresh timing.
 
@@ -14,4 +16,4 @@ Stop transmission by disconnecting or quitting TabBridge. Revoke Mac permissions
 
 ---
 
-Hesap, bulut aktarımı veya eklenmiş TabBridge analitiği yoktur. Görüntü seçilen tablete, kalem/dokunma olayları Mac’e gönderilir. Wi-Fi geliştirme sürümünde kimlik doğrulama ve şifreleme yoktur; yalnızca güvendiğin özel ağını kullan. Yerel günlükleri paylaşmadan önce kontrol et. Aktarımı bağlantıyı keserek veya uygulamadan çıkarak durdurabilir, izinleri sistem ayarlarından geri alabilirsin.
+Hesap, bulut aktarımı veya eklenmiş TabBridge analitiği yoktur. Görüntü seçilen tablete, kalem/dokunma olayları Mac’e gönderilir. 0.2.0’da Native Mac/Android çifti USB üzerinden eşleşir; Wi-Fi verileri tablet sertifikası doğrulanarak TLS ile şifrelenir. Anahtarlar Mac Anahtar Zinciri ve Android Keystore ile korunur. Eski sürümler bu korumayı içermez. Tablet ayarlarından tüm eşleşmeleri iptal edebilirsin. Yerel günlükleri paylaşmadan önce kontrol et. Aktarımı bağlantıyı keserek veya uygulamadan çıkarak durdurabilir, izinleri sistem ayarlarından geri alabilirsin.

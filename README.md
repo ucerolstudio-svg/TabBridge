@@ -10,11 +10,11 @@ TabBridge, [OpenDisplay](https://github.com/peetzweg/opendisplay) temel alınara
 
 ## İlk kurulum
 
-1. Releases bölümünden **macos-arm64.zip** dosyasını indir, aç ve **TabBridge.app** uygulamasını Uygulamalar klasörüne taşı.
+1. Releases bölümünden **macos-arm64.dmg** dosyasını indir, aç ve **TabBridge.app** simgesini yanındaki Applications klasörüne sürükle. ZIP seçeneği de kullanılabilir.
 2. Uygulamayı aç. **Ekran Kaydı** ve **Erişilebilirlik** izinlerini ver. macOS isterse uygulamayı kapatıp yeniden aç. Paket yerel ad hoc imzalıdır; Apple noter onayı henüz yoktur.
 3. Tableti USB **veri** kablosuyla bağla. Geliştirici seçenekleri → **USB hata ayıklama** seçeneğini aç ve tablette kendi Mac’ine izin ver.
-4. Mac’te **Tableti bul → Tablete kur** seç. Android APK Mac paketine dahildir; ayrı APK da Releases bölümündedir.
-5. **Kablolu** seç. Kablosuz kullanım için tablette TabBridge açıkken aynı Wi-Fi ağına bağlanıp **Kablosuz** seç.
+4. Mac’te **Tableti bul → Kur ve eşleştir** seç. Paketteki Android uygulaması kurulur ve bu Mac’in Wi-Fi eşleşmesi fiziksel USB üzerinden kaydedilir. IP adresi veya şifre yazman gerekmez.
+5. **Kablolu** seç. Sonraki kablosuz kullanımlarda tablette TabBridge açıkken aynı ağa bağlanıp **Kablosuz** seç. İlk eşleştirmeden sonra kabloyu çıkarabilir, Wi-Fi kullanırken USB hata ayıklamayı kapatabilirsin.
 6. Küçük widget: masaüstüne sağ tık → **Widget’ları Düzenle → TabBridge**. Sonraki bağlantıları **Kablolu / Kablosuz** düğmelerinden başlat.
 
 Samsung Otomatik Engelleyici, USB hata ayıklamayı engelleyebilir. Güvenlik etkileri, gri anahtar, Mac izin sorunları ve derleme adımları [tam rehberde](Native/README.md) açıklanır.
@@ -29,9 +29,20 @@ Samsung Otomatik Engelleyici, USB hata ayıklamayı engelleyebilir. Güvenlik et
 
 ## Doğrulananlar ve sınırlar
 
-35 Android testi, Android lint ve 8 Mac USB seçim testi geçti. Gerçek USB/Wi-Fi genişletilmiş ekran, iki widget bağlantısının görüntüyü başlatması ve S Pen tıklama/sürükleme doğrulandı. [Test kapsamı](Native/VALIDATION.md).
+Yeni 0.2.0 adayında 56 Android testi (gerçek TLS soketleriyle kabul/ret testleri dahil), Android lint, 14 Mac eşleştirme/sertifika testi ve 8 USB seçim testi geçti. Önceki 0.1.0 sürümünün fiziksel USB/Wi-Fi ekran, widget ve S Pen sonuçları [burada](Native/VALIDATION.md) korunur. Yeni güvenlik akışının gerçek tablet testi yayın öncesi tamamlanmalıdır; eski test sonuçları yeni akışın cihaz doğrulaması sayılmaz.
 
-**Wi-Fi geliştirme protokolünde eşleştirme kodu ve taşıma şifrelemesi yoktur. Yalnızca güvendiğin özel yerel ağında kullan.** Bu eksik giderilmeden genel kullanıma hazır bir güvenli eşleştirme sistemi sayılmaz.
+## Güvenli Wi-Fi eşleştirmesi — 0.2.0
+
+- İlk eşleştirme yalnızca Mac’in `usb:` olarak doğruladığı, kullanıcı tarafından yetkilendirilmiş ADB USB bağlantısından yapılır.
+- Tablet kimliği Mac Anahtar Zinciri’ne kaydedilir. Wi-Fi bağlantısında bu sertifikanın SHA-256 izi doğrulanır; Bonjour adı veya ağdan gelen kimlik bilgisi güven kaynağı değildir.
+- Her Mac için ayrı, rastgele 256 bit erişim anahtarı kullanılır. Tablette Android Keystore anahtarıyla korunur. Anahtarlar günlük, kaynak arşivi veya widget’a yazılmaz.
+- Görüntü, dokunma/S Pen ve imleç TLS 1.2/1.3 üzerinden gider. Ayrı UDP imleç dinleyicisi açılmaz. USB yönlendirmesi de aynı doğrulanmış TLS 9443 kanalını kullanır. Düz TCP 9000 dinleyicisi açılmaz.
+- Eşleşmemiş istemci görüntü başlatamaz veya aktif oturumu değiştiremez. Yeniden bağlantıda da aynı denetim uygulanır; şifresiz ağa geri düşme yoktur.
+- Erişimi kaldırmak için **tablette** ayarlar → **Eşleşmiş Mac’leri unut** seç. Bağlantı kesilir ve anahtarlar silinir. Mac’teki unut düğmesi yalnızca o Mac’in yerel kaydını siler.
+
+**Mac ve tablet uygulamasını birlikte güncelle.** Eski 0.1.0 paketleri şifrelenmez; yeni Mac eski tabletle Wi-Fi bağlantısı kurmaz. Bu koruma dağıtılan Native Mac/Android çifti içindir; kaynakta korunan özgün OpenDisplay, iOS, Linux ve Mac alıcı hedeflerinin güvenliğini değiştirdiği iddia edilmez.
+
+Android 6/API 23+ gerekir. İlk USB kurulumundan sonra Wi-Fi kullanımı için ADB ağ modunu açma; gerekmez. Kaybolan veya güvenilmeyen bir Mac’in erişimini tablet üzerinden kaldır. Mac/tablet işletim sisteminin veya yetkilendirilmiş ADB bilgisayarının ele geçirilmesine karşı koruma iddiası yoktur.
 
 Aktif aktarım Mac ve tabletin pil tüketimini artırır; uzun süreli pil ölçümü yapılmadı. Donanım video kodlama/çözme kullanılır. Kalıcı sistem sürücüsü kurulmaz; geçici sanal ekran ve ScreenCaptureKit kullanılır. Sanal ekranın özel macOS API’si gelecekteki sistem sürümlerinde uyumluluk riski taşır. Uyku/uyanma, uzun oturumlar ve başka modeller ayrıca denenmelidir.
 
@@ -43,4 +54,4 @@ Aktif aktarım Mac ve tabletin pil tüketimini artırır; uzun süreli pil ölç
 
 ## English
 
-TabBridge is an independent GPL-3.0 derivative of OpenDisplay with a focused native Mac setup UI, Android ADB-based USB management and a small WidgetKit launcher. Both widget links and physical USB/Wi-Fi video were tested locally; S Pen click/drag was confirmed. Pressure/tilt in drawing apps, long-duration power and broader compatibility remain unverified. Development Wi-Fi has no authenticated pairing or transport encryption: use a trusted private network only. See the linked setup, validation, privacy and legal documents.
+TabBridge is an independent GPL-3.0 derivative of OpenDisplay with a focused native Mac setup UI, Android ADB-based USB management and a small WidgetKit launcher. Both widget links and physical USB/Wi-Fi video were tested locally; S Pen click/drag was confirmed. Pressure/tilt in drawing apps, long-duration power and broader compatibility remain unverified. Version 0.2.0 adds physical-USB bootstrapping, a Keychain-pinned tablet certificate and per-Mac random credentials over TLS 1.2/1.3. Video, pen/touch and cursor share that connection; there is no UDP listener or plaintext LAN fallback. Both peers must be upgraded. Android API 23+ is required. The new flow still requires hardware validation before release. See the linked setup, validation, privacy and legal documents.
