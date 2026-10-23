@@ -27,7 +27,7 @@ enum Log {
         let library = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library")
         let product = Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? ""
-        let folder = product.hasPrefix("OpenDisplay") ? product : "OpenDisplay"
+        let folder = product.isEmpty ? "OpenDisplay" : product
         return library.appendingPathComponent("Logs/\(folder)", isDirectory: true)
     }()
 
