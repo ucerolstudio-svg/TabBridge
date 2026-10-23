@@ -3,6 +3,7 @@ package app.opendisplay.android.protocol
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
+import java.util.Locale
 import kotlin.math.PI
 
 class PenInputTest {
@@ -16,7 +17,7 @@ class PenInputTest {
         pen = PenInput(
             output = object : PenInput.Output {
                 override fun pencil(phase: String, s: PenInput.Sample) {
-                    events.add("pencil $phase %.1f".format(s.pressure))
+                    events.add("pencil $phase %.1f".format(Locale.ROOT, s.pressure))
                 }
                 override fun proximity(entering: Boolean, x: Double, y: Double) {
                     events.add("proximity $entering")

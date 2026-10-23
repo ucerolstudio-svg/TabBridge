@@ -3,6 +3,7 @@ package app.opendisplay.android.protocol
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
+import java.util.Locale
 
 class TouchGesturesTest {
     private val events = mutableListOf<String>()
@@ -14,10 +15,10 @@ class TouchGesturesTest {
         g = TouchGestures(
             output = object : TouchGestures.Output {
                 override fun touch(phase: String, x: Double, y: Double) {
-                    events.add("$phase %.2f,%.2f".format(x, y))
+                    events.add("$phase %.2f,%.2f".format(Locale.ROOT, x, y))
                 }
                 override fun scroll(dx: Double, dy: Double) {
-                    events.add("scroll %.1f,%.1f".format(dx, dy))
+                    events.add("scroll %.1f,%.1f".format(Locale.ROOT, dx, dy))
                 }
             },
             scheduler = { _, action ->
