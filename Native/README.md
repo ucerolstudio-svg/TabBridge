@@ -1,4 +1,4 @@
-# TabBridge — geliştirme sürümü
+# TabBridge — kurulum rehberi
 
 Galaxy Tab’ı Mac’in genişletilmiş masaüstü olarak kullanır. Bu, OpenDisplay’in
 GPL-3.0 lisanslı bir türevidir; sıfırdan yazılmış bir ekran aktarım motoru değildir.
@@ -22,6 +22,12 @@ WidgetKit widget’ı `Native/` altındadır. Kaynak tabanı ve bildirimler:
 - Bu bir Apple Sidecar uygulaması değildir. Sidecar’ın tüm özellikleriyle
   eşdeğerlik, sıfır hata veya her Samsung modelinde çalışma sözü verilmez.
 
+## En kısa kurulum
+
+DMG’yi aç → TabBridge’i Applications’a sürükle → iki Mac iznini ver → tableti USB ile bağla → **Kur ve eşleştir**. Sonraki bağlantılar widget’tan Kablolu/Kablosuz ile başlar. [Kısa Türkçe/İngilizce rehber](GETTING_STARTED.txt).
+
+Yeni güvenli Wi-Fi akışı Android 6/API 23+ gerektirir. Aşağıdaki fiziksel kullanım sonuçları önceki sürümden gelir; 0.2.0 güvenlik değişikliğinin cihaz testi ayrıca tamamlanmalıdır.
+
 ## İlk kurulum — Mac
 
 1. `TabBridge.app` paketini Uygulamalar klasörüne taşı ve aç. Bu yerel paket
@@ -44,8 +50,8 @@ WidgetKit widget’ı `Native/` altındadır. Kaynak tabanı ve bildirimler:
    kapatmak cihazın koruma kapsamını azaltır; kablolu geliştirme bağlantısını
    yalnızca kendi güvendiğin Mac’le kullan. Kurumsal cihaz politikalarını aşma.
 4. Tabletin USB hata ayıklama penceresinde kendi Mac’ine **İzin ver**.
-5. Mac’te TabBridge → **Tableti bul → Tablete kur**. APK, Mac paketine dahildir.
-   Birden fazla Android cihaz bağlıysa doğru tableti bir kez seç.
+5. Mac’te TabBridge → **Tableti bul → Kur ve eşleştir**. APK, Mac paketine dahildir.
+   Birden fazla Android cihaz bağlıysa doğru tableti bir kez seç. Eşleştirme bilgisi fiziksel USB üzerinden Anahtar Zinciri’ne kaydedilir. Bu adım eski tablet uygulamasını da günceller.
 6. Tablette TabBridge’i açık tut. Mac’te **Kablolu** seç.
 
 USB modu ADB üzerinden TCP yönlendirmesi kullanır. Wi-Fi veya internete
@@ -69,9 +75,16 @@ Birden fazla tablet varsa ilk kullanımda doğru olanı seç.
 Kabloyu çıkarmak kendiliğinden Wi-Fi’ye geçiş başlatmaz. Önce **Kablosuz** seç.
 Wi-Fi kullanımında USB hata ayıklama ve USB kablosu gerekmez.
 
-Bu geliştirme sürümünün yerel ağ aktarımında eşleştirme kodu ve taşıma
-şifrelemesi yoktur; yalnızca kendi güvendiğin özel ağında kullan. Bu eksik
-giderilmeden genel kullanıma hazır bir güvenli eşleştirme sistemi sayılmaz.
+0.2.0’da ilk USB eşleştirmesi zorunludur. Wi-Fi, USB’den alınmış tablet sertifikası
+ile doğrulanır ve her Mac’e ayrı verilen rastgele anahtar üzerinden yetkilendirilir.
+Görüntü, S Pen/dokunma ve imleç TLS 1.2/1.3 kullanır. Eşleşme yoksa uygulama USB
+ile kurulum ister; şifresiz Wi-Fi bağlantısına geri düşmez. USB de aynı kimlik doğrulanmış TLS 9443 kanalına yönlendirilir;
+düz TCP 9000 dinleyicisi yoktur.
+
+Erişimi iptal etmek için **tablette** ayarlar → **Eşleşmiş Mac’leri unut**.
+Bu işlem aktif oturumu kapatır. Yeniden bağlanmak için USB ile eşleştir.
+Mac tarafındaki unut düğmesi yalnızca o Mac’in yerel kaydını kaldırır.
+İki cihazı birlikte güncelle; eski 0.1.0 alıcıları yeni güvenli Wi-Fi ile çalışmaz.
 
 ### Ekranın sağda, solda veya üstte olması
 
@@ -177,7 +190,7 @@ swiftc -sdk "$TABBRIDGE_SDK" Native/Core/TabTypes.swift Native/Tests/main.swift 
 build/tests/tabbridge-usb
 ```
 
-35 Android testi ve 8 Mac USB seçim testi yerel çalıştırmada geçti.
+56 Android testi (18 kimlik doğrulama ve 3 gerçek TLS soket testi dahil), Android lint ve 8 Mac USB seçim testi geçti. Sertifika/kimlik testi: `bash Native/scripts/test-security.sh` (14 kontrol).
 Görüntü aktarımı, fiziksel kalem ve widget başlatma davranışı ayrıca
 cihaz üzerinde test edilmelidir.
 

@@ -1,0 +1,32 @@
+TabBridge — Hızlı kurulum / Quick setup
+
+1. TabBridge.app simgesini Applications klasörüne sürükle ve oradan aç.
+2. Uygulamadaki Ekran Kaydı ve Erişilebilirlik izin adımlarını tamamla.
+3. Tableti USB veri kablosuyla bağla. USB hata ayıklamayı açıp kendi Mac’ine izin ver.
+4. “Tableti bul”, ardından “Kur ve eşleştir” düğmesine dokun.
+   Tablet uygulaması kurulur; güvenli Wi-Fi eşleştirmesi kablo üzerinden yapılır.
+5. “Kablolu” ile başlat. Sonraki kullanımlarda aynı ağdayken “Kablosuz”u seç.
+   Wi-Fi için kabloyu çıkarabilir, USB hata ayıklamayı kapatabilirsin.
+6. Masaüstü → sağ tık → Widget’ları Düzenle → TabBridge → küçük widget.
+7. Ekranların konumunu ayarla düğmesiyle tableti Mac’in sağına/soluna/üstüne taşı.
+
+Wi-Fi: yalnızca USB üzerinden eşleşmiş Mac’ler, tablet sertifikası doğrulanarak
+TLS 1.2 veya 1.3 ile bağlanır. Görüntü, dokunma, S Pen ve imleç aynı kanaldadır.
+Tablet ayarlarından “Eşleşmiş Mac’leri unut” ile erişimi kaldırabilirsin.
+Eski 0.1 sürümleri bu korumayı içermez; iki cihazı birlikte güncelle.
+
+Apple Silicon Mac, macOS 14+, Android 6/API 23+; diğer cihazlarda ayrıca test gerekir.
+Bu beta Apple Developer ID ile imzalı veya noter onaylı değildir.
+macOS engellerse uygulamayı açmayı denedikten sonra Sistem Ayarları →
+Gizlilik ve Güvenlik → Yine de Aç yolunu kullan. Sistem güvenliğini genel olarak kapatma.
+
+English: Drag to Applications, grant Screen Recording and Accessibility, and
+connect your tablet with a USB data cable. Enable USB debugging and authorize
+your own Mac. Click Install and pair (Kur ve eşleştir). After that, choose wired
+or encrypted wireless from the app or small desktop widget. Update both peers;
+legacy receivers are not accepted for Wi-Fi. Forget paired Macs on the tablet
+to revoke access. USB debugging can be disabled after setup for wireless use.
+
+https://github.com/ucerolstudio-svg/TabBridge
+Independent GPL-3.0 derivative of OpenDisplay; upstream attribution retained.
+No warranty; see LICENSE and LEGAL.md in the source repository.
