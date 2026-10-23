@@ -83,6 +83,9 @@ jobs:
             -o build/native-tests/tabbridge-usb
           build/native-tests/tabbridge-usb
 
+      - name: Check TabBridge certificate pinning and pairing input
+        run: bash Native/scripts/test-security.sh
+
   android:
     runs-on: ubuntu-latest
     defaults:
@@ -101,7 +104,7 @@ jobs:
       - name: Prepare disposable Android development build
         run: bash ../Native/scripts/build-android.sh
 
-      # Lint is what catches a platform API above minSdk 21 sneaking in
+      # Lint is what catches a platform API above minSdk 23 sneaking in
       # without an SDK_INT guard. assembleRelease (unsigned) runs the release
       # variant's lintVital and resource checks, which otherwise first run in
       # the release workflow after the tag already exists. The bundle is the
