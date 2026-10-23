@@ -5,6 +5,7 @@ import AppKit
 
 struct TabMainView: View {
     @Bindable var model: TabModel
+    @State private var confirmingForget = false
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -37,13 +38,13 @@ struct TabMainView: View {
                     }.tabCard()
                 }
                 VStack(alignment: .leading, spacing: 13) {
-                    Text("2 · Tableti hazırla").font(.headline)
+                    Text("2 · Bir kez kur ve güvenle eşleştir").font(.headline)
                     Text("Kablolu").font(.subheadline.bold())
                     Text("USB veri kablosunu bağla. Tablette Ayarlar → Tablet hakkında → Yazılım bilgileri → Yapım numarası’na 7 kez dokun. Geliştirici seçeneklerinden USB hata ayıklamayı aç ve bu Mac’e izin ver.")
                         .font(.callout).foregroundStyle(.secondary)
                     HStack {
                         Button("Tableti bul") { model.refreshUSB() }
-                        Button("Tablete kur") { model.installReceiver() }.disabled(model.busy)
+                        Button("Kur ve eşleştir") { model.installReceiver() }.disabled(model.busy)
                     }
                     if !model.usbTablets.isEmpty {
                         Picker("USB tablet", selection: $model.selectedUSB) {
@@ -51,8 +52,9 @@ struct TabMainView: View {
                             ForEach(model.usbTablets) { device in Text(device.name + (device.authorized ? "" : " · izin bekliyor")).tag(device.id) }
                         }
                     }
+                    Label(model.pairingSummary, systemImage: "lock.shield").font(.caption).foregroundStyle(.secondary)
                     Text("Kablosuz").font(.subheadline.bold())
-                    Text("Tablette TabBridge’i aç ve Mac’le aynı Wi-Fi ağına bağlan. Kablo gerekmez. Bu geliştirme sürümünü kendi güvendiğin yerel ağında kullan.")
+                    Text("İlk USB eşleştirmesinden sonra tablette TabBridge’i aç; aynı Wi-Fi ağında Kablosuz’a dokun. Kabloyu çıkarabilirsin. Görüntü, S Pen ve imleç verileri TLS ile şifrelenir.")
                         .font(.callout).foregroundStyle(.secondary)
                     if !model.wifiTablets.isEmpty {
                         Picker("Wi-Fi tablet", selection: $model.selectedWiFi) {
@@ -72,6 +74,10 @@ struct TabMainView: View {
                     }
                 }.tabCard()
                 DisclosureGroup("Bağlantı ayrıntıları") {
+                    Button("Bu Mac’in eşleşmesini unut") { confirmingForget = true }
+                        .confirmationDialog("Bu Mac’in eşleştirmesi silinsin mi?", isPresented: $confirmingForget) {
+                            Button("Eşleşmeyi unut", role: .destructive) { model.forgetPairing() }
+                        }
                     Text(model.logs.suffix(30).joined(separator: "\n")).font(.system(size: 10, design: .monospaced))
                         .textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
                 }
