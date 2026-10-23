@@ -11,13 +11,13 @@ android {
         applicationId = "dev.tabbridge.android"
         // Google Play rejects bundles below API 24 (its automatic protection
         // requires it), so Play builds pass -PappMinSdk=24. The GitHub APK
-        // keeps 21 for Android 5 and 6 devices.
-        minSdk = (findProperty("appMinSdk") as String?)?.toInt() ?: 21
+        // requires API 23 for non-exportable Android Keystore identity keys.
+        minSdk = maxOf(23, (findProperty("appMinSdk") as String?)?.toInt() ?: 23)
         targetSdk = 36
         // CI passes the shared repo version (release-please) as Gradle
         // properties; local builds fall back to these defaults.
-        versionCode = (findProperty("appVersionCode") as String?)?.toInt() ?: 1
-        versionName = findProperty("appVersionName") as String? ?: "0.1.0"
+        versionCode = (findProperty("appVersionCode") as String?)?.toInt() ?: 2
+        versionName = findProperty("appVersionName") as String? ?: "0.2.0-beta.1"
     }
 
     signingConfigs.getByName("debug") {
