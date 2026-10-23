@@ -26,6 +26,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import app.opendisplay.android.R
 import app.opendisplay.android.net.Advertiser
+import app.opendisplay.android.net.SecurePairing
 import app.opendisplay.android.net.ReceiverServer
 import app.opendisplay.android.protocol.AnnexB
 import app.opendisplay.android.protocol.Codec
@@ -100,7 +101,7 @@ class MainActivity : AppCompatActivity(), ReceiverServer.Listener, VideoDecoder.
         enterImmersive()
 
         decoder = VideoDecoder(this).also { it.start() }
-        server = ReceiverServer(this, ::buildHello)
+        server = ReceiverServer(this, ::buildHello, SecurePairing(this))
         advertiser = Advertiser(this)
         val slop = 10 * resources.displayMetrics.density
         gestures = TouchGestures(
@@ -202,6 +203,13 @@ class MainActivity : AppCompatActivity(), ReceiverServer.Listener, VideoDecoder.
     }
 
     override fun onOverlayChanged(enabled: Boolean) = refreshIdle()
+
+    override fun onForgetMacs() {
+        server.stop("closing")
+        SecurePairing(this).forgetAll()
+        server.start()
+        refreshIdle()
+    }
 
     override fun onStart() {
         super.onStart()

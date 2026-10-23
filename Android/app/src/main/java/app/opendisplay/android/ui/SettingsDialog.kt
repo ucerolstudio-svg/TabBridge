@@ -32,6 +32,7 @@ class SettingsDialog : DialogFragment() {
         val streamSummary: String?
         val uiKind: String
         fun onNameChanged(name: String?)
+        fun onForgetMacs()
         fun onOverlayChanged(enabled: Boolean)
     }
 
@@ -97,6 +98,21 @@ class SettingsDialog : DialogFragment() {
                 addPreference(info(R.string.row_listening, getString(R.string.row_listening_value)))
                 connection = info(R.string.row_connection, null).also { addPreference(it) }
                 stream = info(R.string.row_stream, null).also { addPreference(it) }
+            }
+
+            screen.category(R.string.section_security) {
+                addPreference(footer(getString(R.string.security_footer)))
+                addPreference(Preference(ctx).apply {
+                    title = getString(R.string.forget_macs)
+                    isIconSpaceReserved = false
+                    setOnPreferenceClickListener {
+                        com.google.android.material.dialog.MaterialAlertDialogBuilder(ctx)
+                            .setTitle(R.string.forget_macs).setMessage(R.string.forget_macs_confirm)
+                            .setNegativeButton(android.R.string.cancel, null)
+                            .setPositiveButton(android.R.string.ok) { _, _ -> host.onForgetMacs() }.show()
+                        true
+                    }
+                })
             }
 
             screen.category(R.string.section_name) {
@@ -221,6 +237,6 @@ class SettingsDialog : DialogFragment() {
     }
 
     companion object {
-        const val MAC_APP_URL = "https://opendisplay.app/"
+        const val MAC_APP_URL = "https://github.com/ucerolstudio-svg/TabBridge/releases"
     }
 }
